@@ -1,17 +1,10 @@
 const express = require('express');
-const Link = require('../models/linkModel');
+const linkController = require('./../controllers/linkController');
+
 const router = express.Router();
 
-router.get('/links', async (req, res) => {
-  const links = await Link.find();
-
-  res.status(200).json({
-    status: 'success',
-    results: links.length,
-    data: {
-      links,
-    },
-  });
-});
+router.get('/links', linkController.getAllLinks);
+router.get('/links/:shortCode', linkController.getLink);
+router.get('/:shortCode', linkController.goToLink);
 
 module.exports = router;
