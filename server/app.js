@@ -1,8 +1,7 @@
 const express = require('express');
 const app = express();
+const linkRouter = require('./routes/linkRoutes');
 
-app.get('/', (req, res) => {
-  res.status(200).send('<h1>Hello from the server!</h1>');
-});
+app.use('/api/', linkRouter);
 
 module.exports = app;
