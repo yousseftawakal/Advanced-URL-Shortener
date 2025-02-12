@@ -25,6 +25,11 @@ const linkSchema = new mongoose.Schema({
   },
 });
 
+linkSchema.pre('findOneAndUpdate', function (next) {
+  this.set({ updatedAt: Date.now() });
+  next();
+});
+
 const Link = mongoose.model('Link', linkSchema);
 
 module.exports = Link;
