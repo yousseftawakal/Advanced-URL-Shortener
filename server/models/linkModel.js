@@ -10,6 +10,8 @@ const linkSchema = new mongoose.Schema({
   shortCode: {
     type: String,
     required: true,
+    lowercase: true,
+    unique: [true, 'Already used short code.'],
   },
   createdAt: {
     type: Date,
@@ -17,8 +19,12 @@ const linkSchema = new mongoose.Schema({
   },
   updatedAt: Date,
   accessCount: Number,
+  user: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'User',
+  },
 });
 
-const Link = mongoose.model('User', linkSchema);
+const Link = mongoose.model('Link', linkSchema);
 
 module.exports = Link;
