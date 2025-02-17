@@ -1,15 +1,22 @@
 const mongoose = require('mongoose');
 const validator = require('validator');
+const bcrypt = require('bcrypt');
 
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: [true, 'Please provide your name.'],
     maxlength: [50, 'Name must be 50 characters at most.'],
+  },
+  username: {
+    type: String,
+    required: [true, 'Please provide a username.'],
+    unique: [true, 'Already used username.'],
+    maxlength: [50, 'Username must be 50 characters at most.'],
+    match: [/^(?!\.)(?!.*\.$)[a-zA-Z0-9_.]+$/, 'Username invalid format.'],
   },
   email: {
     type: String,
-    required: [true, 'Please provide your email address.'],
+    required: [true, 'Please provide an email address.'],
     unique: [true, 'Already used email address.'],
     lowercase: true,
     validate: [validator.isEmail, 'Please provide a valid email address.'],
@@ -44,6 +51,14 @@ const userSchema = new mongoose.Schema({
       ref: 'Link',
     },
   ],
+});
+
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
+
+  this.password = await bcrypt.hash(this.password, 12);
+  this.passwordConfirm = undefined;
+  next();
 });
 
 const User = mongoose.model('User', userSchema);
