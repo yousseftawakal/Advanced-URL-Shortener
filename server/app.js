@@ -5,6 +5,9 @@ const mongoSanitize = require('express-mongo-sanitize');
 const xss = require('xss-clean');
 const helmet = require('helmet');
 
+const AppError = require('./utils/appError');
+const globalErrorHandler = require('./controllers/errorController');
+
 const linkRouter = require('./routes/linkRoutes');
 const userRouter = require('./routes/userRoutes');
 
@@ -28,5 +31,7 @@ app.use('/api/users', userRouter);
 app.all('*', (req, res, next) => {
   next(new AppError('Page could not be found.', 404));
 });
+
+app.use(globalErrorHandler);
 
 module.exports = app;
