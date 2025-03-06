@@ -48,14 +48,12 @@ exports.goToLink = catchAsync(async (req, res, next) => {
 });
 
 function normalizeURL(url) {
-  return url.replace(/^(?!https?:\/\/)/, 'https://');
+  if (url) return url.replace(/^(?!https?:\/\/)/, 'https://');
 }
 
-exports.createLink = catchAsync(async (req, res, next) => {
+exports.createLink = catchAsync(async (req, res) => {
   let { url, shortCode } = req.body;
   url = normalizeURL(url);
-
-  if (!url) return next(new AppError('Please provide a URL.'));
 
   const link = await Link.create({ url, shortCode });
 
