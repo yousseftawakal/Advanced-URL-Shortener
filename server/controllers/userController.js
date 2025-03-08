@@ -15,7 +15,10 @@ exports.getAllUsers = catchAsync(async (req, res) => {
 });
 
 exports.getUser = catchAsync(async (req, res, next) => {
-  const user = await User.findOne({ username: req.params.username });
+  const user = await User.findOne({ username: req.params.username }).populate({
+    path: 'links',
+    select: '-__v',
+  });
 
   if (!user)
     return next(

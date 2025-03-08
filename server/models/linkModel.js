@@ -18,10 +18,14 @@ const linkSchema = new mongoose.Schema({
     default: Date.now(),
   },
   updatedAt: Date,
-  accessCount: Number,
+  accessCount: {
+    type: Number,
+    default: 0,
+  },
   user: {
     type: mongoose.Schema.ObjectId,
     ref: 'User',
+    required: [true, 'Link must belong to a user.'],
   },
 });
 

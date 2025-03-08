@@ -15,7 +15,12 @@ exports.getAllLinks = catchAsync(async (req, res) => {
 });
 
 exports.getLink = catchAsync(async (req, res, next) => {
-  const link = await Link.findOne({ shortCode: req.params.shortCode });
+  const link = await Link.findOne({
+    shortCode: req.params.shortCode,
+  }).populate({
+    path: 'user',
+    select: 'name username photo',
+  });
 
   if (!link)
     return next(
@@ -44,6 +49,9 @@ exports.goToLink = catchAsync(async (req, res, next) => {
       )
     );
 
+  ++link.accessCount;
+  link.save();
+
   res.status(302).redirect(link.url);
 });
 
@@ -55,7 +63,7 @@ exports.createLink = catchAsync(async (req, res) => {
   let { url, shortCode } = req.body;
   url = normalizeURL(url);
 
-  const link = await Link.create({ url, shortCode });
+  const link = await Link.create({ url, shortCode, user: req.user.id });
 
   res.status(201).json({
     status: 'success',
@@ -65,12 +73,20 @@ exports.createLink = catchAsync(async (req, res) => {
   });
 });
 
+const getFields = (req) => {
+  const fields =
+    req.user.role === 'admin'
+      ? { shortCode: req.params.shortCode }
+      : { shortCode: req.params.shortCode, user: req.user.id };
+  return fields;
+};
+
 exports.updateLink = catchAsync(async (req, res, next) => {
   let { url, shortCode } = req.body;
   url = normalizeURL(url);
 
   const link = await Link.findOneAndUpdate(
-    { shortCode: req.params.shortCode },
+    getFields(req),
     { url, shortCode },
     {
       new: true,
@@ -92,7 +108,7 @@ exports.updateLink = catchAsync(async (req, res, next) => {
 });
 
 exports.deleteLink = catchAsync(async (req, res, next) => {
-  const link = await Link.findOneAndDelete({ shortCode: req.params.shortCode });
+  const link = await Link.findOneAndDelete(getFields(req));
 
   if (!link)
     return next(
