@@ -1,6 +1,27 @@
 const Link = require('../models/linkModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
+const QRCode = require('qrcode');
+
+const generateShortCode = async () => {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let shortCode;
+  let isUnique = false;
+
+  while (!isUnique) {
+    const length = Math.floor(Math.random() * 16) + 1;
+
+    shortCode = '';
+    for (let i = 0; i < length; i++) {
+      shortCode += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    const existingLink = await Link.findOne({ shortCode });
+    if (!existingLink) isUnique = true;
+  }
+
+  return shortCode.trim();
+};
 
 exports.getAllLinks = catchAsync(async (req, res) => {
   const links = await Link.find();
@@ -63,7 +84,17 @@ exports.createLink = catchAsync(async (req, res) => {
   let { url, shortCode } = req.body;
   url = normalizeURL(url);
 
-  const link = await Link.create({ url, shortCode, user: req.user.id });
+  if (!shortCode) shortCode = await generateShortCode();
+
+  const fullShortUrl = `${req.protocol}://${req.get('host')}/${shortCode}`;
+  const qrCode = await QRCode.toDataURL(fullShortUrl);
+
+  const link = await Link.create({
+    url,
+    shortCode,
+    qrCode,
+    user: req.user.id,
+  });
 
   res.status(201).json({
     status: 'success',

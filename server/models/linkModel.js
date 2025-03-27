@@ -12,6 +12,21 @@ const linkSchema = new mongoose.Schema({
     required: true,
     lowercase: true,
     unique: [true, 'Already used short code.'],
+    minlength: [1, 'Short code must be at least 1 character long'],
+    maxlength: [16, 'Short code cannot exceed 16 characters'],
+    validate: [
+      {
+        validator: function (v) {
+          return /^[a-zA-Z0-9]+$/.test(v);
+        },
+        message: 'Short code can only contain letters and numbers',
+      },
+    ],
+    trim: true,
+  },
+  qrCode: {
+    type: String,
+    required: true,
   },
   createdAt: {
     type: Date,
