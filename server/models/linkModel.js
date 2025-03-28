@@ -1,7 +1,13 @@
 const mongoose = require('mongoose');
 const validator = require('validator');
+const slugify = require('slugify');
 
 const linkSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    default: 'Untitled',
+    trim: true,
+  },
   url: {
     type: String,
     required: [true, 'Please provide a URL.'],
@@ -10,19 +16,16 @@ const linkSchema = new mongoose.Schema({
   shortCode: {
     type: String,
     required: true,
-    lowercase: true,
     unique: [true, 'Already used short code.'],
     minlength: [1, 'Short code must be at least 1 character long'],
     maxlength: [16, 'Short code cannot exceed 16 characters'],
-    validate: [
-      {
-        validator: function (v) {
-          return /^[a-zA-Z0-9]+$/.test(v);
-        },
-        message: 'Short code can only contain letters and numbers',
-      },
-    ],
-    trim: true,
+    set: function (v) {
+      return slugify(v, {
+        lower: true,
+        strict: true,
+        trim: true,
+      });
+    },
   },
   qrCode: {
     type: String,
