@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -645,10 +645,22 @@ function StatsCards({ totalCortos, totalClicks, avgClicksPerCorto }) {
 
 function CreateCorto({ onSubmit, error }) {
   const [formData, setFormData] = useState({
-    title: '',
     url: '',
+    title: '',
     shortCode: '',
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const prefixRef = useRef(null);
+
+  useEffect(() => {
+    if (prefixRef.current) {
+      const prefixWidth = prefixRef.current.offsetWidth;
+      document.documentElement.style.setProperty(
+        '--prefix-width',
+        `${prefixWidth}px`
+      );
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -661,8 +673,8 @@ function CreateCorto({ onSubmit, error }) {
       await onSubmit(formData);
       // Only clear the form if submission was successful
       setFormData({
-        title: '',
         url: '',
+        title: '',
         shortCode: '',
       });
     } catch (error) {
@@ -711,7 +723,10 @@ function CreateCorto({ onSubmit, error }) {
           <div className="form-group">
             <label className="form-label">Custom Alias (Optional)</label>
             <div className="input-with-prefix">
-              <span className="input-prefix">{`${getBaseUrl()}/`}</span>
+              <span
+                className="input-prefix"
+                ref={prefixRef}
+              >{`${getBaseUrl()}/`}</span>
               <input
                 type="text"
                 name="shortCode"

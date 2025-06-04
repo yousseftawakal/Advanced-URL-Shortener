@@ -143,10 +143,13 @@
     left: 1rem;
     color: var(--color-text-secondary);
     font-size: 0.875rem;
+    pointer-events: none;
+    white-space: nowrap;
   }
 
   .form-control {
-    padding-left: 5rem;
+    width: 100%;
+    padding-left: calc(1rem + var(--prefix-width, 0px));
   }
 }
 
