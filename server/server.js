@@ -11,6 +11,10 @@ mongoose.connect(DB).then(() => console.log('DB connected successfully!'));
 
 const port = process.env.PORT || 3001;
 
-app.listen(port, () => {
-  console.log(`App running on port ${port}...`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(port, () => {
+    console.log(`App running on port ${port}...`);
+  });
+}
+
+module.exports = app;
