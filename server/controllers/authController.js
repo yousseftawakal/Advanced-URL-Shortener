@@ -33,7 +33,7 @@ exports.signup = catchAsync(async (req, res, next) => {
   const { name, username, email, password, passwordConfirm } = req.body;
 
   const user = await User.create({
-    name: name === '' && undefined,
+    name: name === '' ? undefined : name,
     username,
     email,
     password,
