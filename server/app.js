@@ -16,7 +16,22 @@ const userRouter = require('./routes/userRoutes');
 
 const app = express();
 
-app.use(cors());
+// Allow all CORS
+app.use(
+  cors({
+    origin: 'https://cortox.vercel.app',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+    ],
+    exposedHeaders: ['Set-Cookie'],
+  })
+);
 
 app.use(helmet());
 
