@@ -711,7 +711,7 @@ function CreateCorto({ onSubmit, error }) {
           <div className="form-group">
             <label className="form-label">Custom Alias (Optional)</label>
             <div className="input-with-prefix">
-              <span className="input-prefix">cortox.io/</span>
+              <span className="input-prefix">{`${getBaseUrl()}/`}</span>
               <input
                 type="text"
                 name="shortCode"
@@ -888,6 +888,11 @@ function YourCortos({
   );
 }
 
+function getBaseUrl() {
+  const port = window.location.port ? `:${window.location.port}` : '';
+  return `${window.location.hostname}${port}`;
+}
+
 function CortoRow({ corto, onDelete, onCopy, onUpdate }) {
   const [showQRCode, setShowQRCode] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -900,11 +905,6 @@ function CortoRow({ corto, onDelete, onCopy, onUpdate }) {
       hour: '2-digit',
       minute: '2-digit',
     });
-  };
-
-  const getBaseUrl = () => {
-    const port = window.location.port ? `:${window.location.port}` : '';
-    return `${window.location.hostname}${port}`;
   };
 
   return (
@@ -1055,7 +1055,7 @@ const EditCortoPopup = ({ corto, onClose, onUpdate }) => {
             <div className="settings-popup__option">
               <label className="settings-popup__label">Custom Alias</label>
               <div className="input-with-prefix">
-                <span className="input-prefix">cortox.io/</span>
+                <span className="input-prefix">{`${getBaseUrl()}/`}</span>
                 <input
                   type="text"
                   name="shortCode"
