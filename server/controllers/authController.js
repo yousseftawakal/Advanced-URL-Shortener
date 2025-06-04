@@ -31,7 +31,7 @@ exports.signup = catchAsync(async (req, res, next) => {
   const { name, username, email, password, passwordConfirm } = req.body;
 
   const user = await User.create({
-    name,
+    name: name === '' && undefined,
     username,
     email,
     password,
@@ -42,16 +42,16 @@ exports.signup = catchAsync(async (req, res, next) => {
 });
 
 exports.login = catchAsync(async (req, res, next) => {
-  const { username, email, password } = req.body;
+  const { identifier, password } = req.body;
 
-  if ((!username && !email) || !password)
+  if (!identifier || !password)
     return next(
-      new AppError('Please provide username or email, and password.', 400)
+      new AppError('Please provide username/email and password.', 400)
     );
 
-  const user = await User.findOne({ $or: [{ username }, { email }] }).select(
-    '+password'
-  );
+  const user = await User.findOne({
+    $or: [{ username: identifier }, { email: identifier }],
+  }).select('+password');
 
   if (!user || !(await user.correctPassword(password, user.password)))
     return next(new AppError('Incorrect username, email or password', 401));
@@ -63,6 +63,7 @@ exports.logout = (req, res) => {
   res.cookie('jwt', '', {
     expires: new Date(Date.now()),
     httpOnly: true,
+    secure: req.secure || process.env.NODE_ENV === 'production',
   });
 
   res.status(200).json({

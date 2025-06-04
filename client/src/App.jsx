@@ -1,8 +1,22 @@
 import React, { useState, useEffect, useContext } from 'react';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+} from 'react-router-dom';
 import './styles/main.scss';
 import logoLight from './assets/CortoX - White.png';
 import logoDark from './assets/CortoX - Purple.png';
 import { ThemeProvider, ThemeContext } from './context/ThemeContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { links, user } from './services/api';
+import Redirect from './components/Redirect';
+import QRCodePopup from './components/QRCodePopup';
+import AuthPage from './components/auth/AuthPage';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 import {
   FiSearch,
@@ -17,47 +31,132 @@ import {
   FiX,
 } from 'react-icons/fi';
 import { IoChevronBackOutline, IoChevronForwardOutline } from 'react-icons/io5';
+import { FaQrcode } from 'react-icons/fa';
 
-// TODO: Replace with API call to fetch cortos
-
-function App() {
-  const [cortos, setCortos] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+const ProtectedRoute = ({ children }) => {
+  const { currentUser, loading } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchCortos = async () => {
-      try {
-        // TODO: Replace with actual API call
-      } catch (error) {
-        console.error('Error fetching cortos:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    if (!loading && !currentUser) {
+      navigate('/auth');
+    }
+  }, [currentUser, loading, navigate]);
 
-    fetchCortos();
-  }, []);
+  if (loading) {
+    return (
+      <div className="loading">
+        <div className="loading__spinner"></div>
+        <p className="loading__text">Loading...</p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return null;
+  }
+
+  return children;
+};
+
+const PublicRoute = ({ children }) => {
+  const { currentUser, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && currentUser) {
+      navigate('/');
+    }
+  }, [currentUser, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="loading">
+        <div className="loading__spinner"></div>
+        <p className="loading__text">Loading...</p>
+      </div>
+    );
+  }
+
+  if (currentUser) {
+    return null;
+  }
+
+  return children;
+};
+
+function AppContent() {
+  const [cortos, setCortos] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const { currentUser, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (currentUser) {
+      setCortos(currentUser.links || []);
+      setIsLoading(false);
+    } else if (!authLoading) {
+      setCortos([]);
+      setIsLoading(false);
+    }
+  }, [currentUser, authLoading]);
 
   const handleSubmit = async (formData) => {
     try {
-      // TODO: Replace with actual API call
+      const response = await links.create(formData);
+      if (response.data?.data?.link) {
+        setCortos((prev) => [response.data.data.link, ...prev]);
+        toast.success('Corto created!');
+        return response;
+      }
     } catch (error) {
-      console.error('Error creating corto:', error);
+      console.error('Error creating link:', error);
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else {
+        setError('Failed to create link. Please try again.');
+      }
+      throw error;
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleUpdate = async (shortCode, formData) => {
     try {
-      // TODO: Replace with actual API call
+      const response = await links.update(shortCode, formData);
+      if (response.data?.data?.link) {
+        setCortos((prev) =>
+          prev.map((corto) =>
+            corto.shortCode === shortCode ? response.data.data.link : corto
+          )
+        );
+        toast.success('Corto updated!');
+        return response;
+      }
+    } catch (error) {
+      console.error('Error updating link:', error);
+      throw error;
+    }
+  };
+
+  const handleDelete = async (shortCode) => {
+    try {
+      await links.delete(shortCode);
+      setCortos((prev) =>
+        prev.filter((corto) => corto.shortCode !== shortCode)
+      );
+      toast.success('Corto deleted!');
     } catch (error) {
       console.error('Error deleting corto:', error);
     }
   };
 
-  const handleCopy = async (url) => {
+  const handleCopy = async (shortCode) => {
     try {
-      await navigator.clipboard.writeText(`https://${url}`);
-      // TODO: Add toast notification
+      const port = window.location.port ? `:${window.location.port}` : '';
+      await navigator.clipboard.writeText(
+        `${window.location.protocol}//${window.location.hostname}${port}/${shortCode}`
+      );
+      toast.success('Copied to clipboard!');
     } catch (error) {
       console.error('Error copying URL:', error);
     }
@@ -80,7 +179,7 @@ function App() {
         ...cortos.map((corto) =>
           [
             `"${corto.title}"`,
-            `"${corto.url}"`,
+            `"${corto.shortCode}"`,
             `"${corto.longUrl}"`,
             `"${corto.created}"`,
             `"${corto.updated}"`,
@@ -104,46 +203,85 @@ function App() {
   };
 
   const totalCortos = cortos.length;
-  const totalClicks = cortos.reduce((sum, corto) => sum + corto.clicks, 0);
+  const totalClicks = cortos.reduce((sum, corto) => sum + corto.accessCount, 0);
   const avgClicksPerCorto =
     totalCortos > 0 ? Math.round(totalClicks / totalCortos) : 0;
 
-  if (isLoading) {
-    return (
-      <div className="loading">
-        <div className="loading__spinner"></div>
-        <p className="loading__text">Loading...</p>
-      </div>
-    );
-  }
+  return (
+    <>
+      <ToastContainer
+        position="top-right"
+        autoClose={4000}
+        hideProgressBar={false}
+        newestOnTop={true}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="colored"
+      />
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <div className="app">
+                <Header />
+                <main className="main">
+                  <div className="main__container">
+                    <div className="main__content">
+                      <div className="greeting">
+                        <h1 className="greeting__title">
+                          Hello,{' '}
+                          {currentUser?.name || currentUser?.username || '_'}
+                        </h1>
+                        <p className="greeting__subtitle">
+                          Welcome to your dashboard
+                        </p>
+                      </div>
+                      <StatsCards
+                        totalCortos={totalCortos || 0}
+                        totalClicks={totalClicks || 0}
+                        avgClicksPerCorto={avgClicksPerCorto || 0}
+                      />
+                      <CreateCorto onSubmit={handleSubmit} error={error} />
+                      <YourCortos
+                        cortos={cortos}
+                        handleDelete={handleDelete}
+                        handleCopy={handleCopy}
+                        handleExport={handleExport}
+                        handleUpdate={handleUpdate}
+                      />
+                    </div>
+                  </div>
+                </main>
+              </div>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/auth"
+          element={
+            <PublicRoute>
+              <AuthPage />
+            </PublicRoute>
+          }
+        />
+        <Route path="/:shortCode" element={<Redirect />} />
+      </Routes>
+    </>
+  );
+}
 
+function App() {
   return (
     <ThemeProvider>
-      <div className="app">
-        <Header />
-        <main className="main">
-          <div className="main__container">
-            <div className="main__content">
-              <div className="greeting">
-                <h1 className="greeting__title">Hello, John</h1>
-                <p className="greeting__subtitle">Welcome to your dashboard</p>
-              </div>
-              <StatsCards
-                totalCortos={totalCortos}
-                totalClicks={totalClicks}
-                avgClicksPerCorto={avgClicksPerCorto}
-              />
-              <CreateCorto onSubmit={handleSubmit} />
-              <YourCortos
-                cortos={cortos}
-                handleDelete={handleDelete}
-                handleCopy={handleCopy}
-                handleExport={handleExport}
-              />
-            </div>
-          </div>
-        </main>
-      </div>
+      <Router>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </Router>
     </ThemeProvider>
   );
 }
@@ -152,14 +290,27 @@ const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { theme } = useContext(ThemeContext);
+  const { currentUser, logout } = useAuth();
+
+  const getInitials = (name, username) => {
+    if (name) {
+      const nameParts = name.trim().split(' ');
+      if (nameParts.length === 1) return nameParts[0][0].toUpperCase();
+      return `${nameParts[0][0]}${
+        nameParts[nameParts.length - 1][0]
+      }`.toUpperCase();
+    }
+    // If no name, use first letter of username
+    return username ? username[0].toUpperCase() : '_';
+  };
 
   const handleMenuToggle = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
   const handleLogout = () => {
-    document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    window.location.reload();
+    logout();
+    setIsMenuOpen(false);
   };
 
   const handleSettings = () => {
@@ -179,7 +330,9 @@ const Header = () => {
         </div>
         <div className="header__user">
           <div className="header__profile" onClick={handleMenuToggle}>
-            <div className="header__avatar">JD</div>
+            <div className="header__avatar">
+              {getInitials(currentUser?.name, currentUser?.username)}
+            </div>
           </div>
           {isMenuOpen && (
             <div className="header__menu">
@@ -196,23 +349,31 @@ const Header = () => {
         </div>
       </div>
       {isSettingsOpen && (
-        <SettingsPopup onClose={() => setIsSettingsOpen(false)} />
+        <SettingsPopup
+          onClose={() => setIsSettingsOpen(false)}
+          userData={currentUser}
+        />
       )}
     </header>
   );
 };
 
-const SettingsPopup = ({ onClose }) => {
+const SettingsPopup = ({ onClose, userData }) => {
   const { theme, toggleTheme } = useContext(ThemeContext);
+  const { currentUser, setCurrentUser } = useAuth();
   const [formData, setFormData] = useState({
     theme: theme,
-    name: 'John Doe',
-    username: 'johndoe',
-    email: 'john@example.com',
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
+    name: userData?.name || '',
+    username: userData?.username || '',
+    email: userData?.email || '',
+    passwordCurrent: '',
+    password: '',
+    passwordConfirm: '',
   });
+  const [profileError, setProfileError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [isPasswordLoading, setIsPasswordLoading] = useState(false);
 
   useEffect(() => {
     setFormData((prev) => ({ ...prev, theme }));
@@ -223,16 +384,81 @@ const SettingsPopup = ({ onClose }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
 
     if (name === 'theme') {
-      console.log('Theme changed to:', value);
       toggleTheme(value);
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    // TODO: Implement settings update
-    console.log('Settings updated:', formData);
+    setProfileError('');
+    setIsProfileLoading(true);
+
+    let response;
+    try {
+      response = await user.updateMe({
+        name: formData.name,
+        username: formData.username,
+        email: formData.email,
+      });
+    } catch (err) {
+      if (err.response?.data?.message) {
+        setProfileError(err.response.data.message);
+      } else if (err.response?.data?.error) {
+        const validationError = err.response.data.error;
+        if (typeof validationError === 'object') {
+          const errorMessages = Object.values(validationError).join(', ');
+          setProfileError(errorMessages);
+        } else {
+          setProfileError(validationError);
+        }
+      } else {
+        setProfileError('Failed to update profile. Please try again.');
+      }
+      setIsProfileLoading(false);
+      return;
+    }
+
+    setCurrentUser(response.data.data.user);
+    toast.success('Profile updated!');
+    setIsProfileLoading(false);
     onClose();
+  };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+
+    if (formData.password !== formData.passwordConfirm) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+
+    setIsPasswordLoading(true);
+
+    try {
+      await user.updatePassword({
+        passwordCurrent: formData.passwordCurrent,
+        password: formData.password,
+        passwordConfirm: formData.passwordConfirm,
+      });
+
+      // Clear password fields after successful update
+      setFormData((prev) => ({
+        ...prev,
+        passwordCurrent: '',
+        password: '',
+        passwordConfirm: '',
+      }));
+      toast.success('Password updated!');
+    } catch (err) {
+      if (err.response?.data?.message) {
+        setPasswordError(err.response.data.message);
+      } else {
+        setPasswordError('Failed to update password. Please try again.');
+      }
+    } finally {
+      setIsPasswordLoading(false);
+    }
   };
 
   return (
@@ -245,7 +471,7 @@ const SettingsPopup = ({ onClose }) => {
             <FiX className="settings-popup__close-icon" />
           </button>
         </div>
-        <form className="settings-popup__body" onSubmit={handleSubmit}>
+        <div className="settings-popup__body">
           <div className="settings-popup__section">
             <h3 className="settings-popup__section-title">Theme</h3>
             <div className="settings-popup__option">
@@ -263,8 +489,14 @@ const SettingsPopup = ({ onClose }) => {
             </div>
           </div>
 
-          <div className="settings-popup__section">
+          <form
+            className="settings-popup__section"
+            onSubmit={handleProfileSubmit}
+          >
             <h3 className="settings-popup__section-title">Profile</h3>
+            {profileError && (
+              <div className="settings-popup__error">{profileError}</div>
+            )}
             <div className="settings-popup__option">
               <label className="settings-popup__label">Name</label>
               <input
@@ -273,6 +505,7 @@ const SettingsPopup = ({ onClose }) => {
                 value={formData.name}
                 onChange={handleChange}
                 className="settings-popup__input"
+                maxLength={50}
               />
             </div>
             <div className="settings-popup__option">
@@ -283,6 +516,9 @@ const SettingsPopup = ({ onClose }) => {
                 value={formData.username}
                 onChange={handleChange}
                 className="settings-popup__input"
+                maxLength={50}
+                pattern="^(?!\.)(?!.*\.$)[a-zA-Z0-9_.]+$"
+                title="Username can only contain letters, numbers, underscores, and dots. Cannot start or end with a dot."
               />
             </div>
             <div className="settings-popup__option">
@@ -295,28 +531,46 @@ const SettingsPopup = ({ onClose }) => {
                 className="settings-popup__input"
               />
             </div>
-          </div>
+            <div className="settings-popup__section-footer">
+              <button
+                type="submit"
+                className="settings-popup__button settings-popup__button--save"
+                disabled={isProfileLoading}
+              >
+                {isProfileLoading ? 'Saving...' : 'Save Profile'}
+              </button>
+            </div>
+          </form>
 
-          <div className="settings-popup__section">
+          <form
+            className="settings-popup__section"
+            onSubmit={handlePasswordSubmit}
+          >
             <h3 className="settings-popup__section-title">Password</h3>
+            {passwordError && (
+              <div className="settings-popup__error">{passwordError}</div>
+            )}
             <div className="settings-popup__option">
               <label className="settings-popup__label">Current Password</label>
               <input
                 type="password"
-                name="currentPassword"
-                value={formData.currentPassword}
+                name="passwordCurrent"
+                value={formData.passwordCurrent}
                 onChange={handleChange}
                 className="settings-popup__input"
+                required
               />
             </div>
             <div className="settings-popup__option">
               <label className="settings-popup__label">New Password</label>
               <input
                 type="password"
-                name="newPassword"
-                value={formData.newPassword}
+                name="password"
+                value={formData.password}
                 onChange={handleChange}
                 className="settings-popup__input"
+                required
+                minLength={8}
               />
             </div>
             <div className="settings-popup__option">
@@ -325,13 +579,24 @@ const SettingsPopup = ({ onClose }) => {
               </label>
               <input
                 type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
+                name="passwordConfirm"
+                value={formData.passwordConfirm}
                 onChange={handleChange}
                 className="settings-popup__input"
+                required
+                minLength={8}
               />
             </div>
-          </div>
+            <div className="settings-popup__section-footer">
+              <button
+                type="submit"
+                className="settings-popup__button settings-popup__button--save"
+                disabled={isPasswordLoading}
+              >
+                {isPasswordLoading ? 'Updating...' : 'Update Password'}
+              </button>
+            </div>
+          </form>
 
           <div className="settings-popup__footer">
             <button
@@ -339,16 +604,10 @@ const SettingsPopup = ({ onClose }) => {
               className="settings-popup__button settings-popup__button--cancel"
               onClick={onClose}
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="settings-popup__button settings-popup__button--save"
-            >
-              Save Changes
+              Close
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
@@ -370,7 +629,7 @@ function StatsCards({ totalCortos, totalClicks, avgClicksPerCorto }) {
           <h3 className="stats-card__title">Total Clicks</h3>
           <FiBarChart className="stats-card__icon stats-card__icon--clicks" />
         </div>
-        <div className="stats-card__value">{totalClicks.toLocaleString()}</div>
+        <div className="stats-card__value">{totalClicks}</div>
       </div>
 
       <div className="stats-card">
@@ -384,11 +643,11 @@ function StatsCards({ totalCortos, totalClicks, avgClicksPerCorto }) {
   );
 }
 
-function CreateCorto({ onSubmit }) {
+function CreateCorto({ onSubmit, error }) {
   const [formData, setFormData] = useState({
     title: '',
-    longUrl: '',
-    customAlias: '',
+    url: '',
+    shortCode: '',
   });
 
   const handleChange = (e) => {
@@ -396,10 +655,20 @@ function CreateCorto({ onSubmit }) {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit(formData);
-    setFormData({ title: '', longUrl: '', customAlias: '' });
+    try {
+      await onSubmit(formData);
+      // Only clear the form if submission was successful
+      setFormData({
+        title: '',
+        url: '',
+        shortCode: '',
+      });
+    } catch (error) {
+      // Keep the form data if there was an error
+      console.error('Error creating link:', error.message);
+    }
   };
 
   return (
@@ -415,8 +684,8 @@ function CreateCorto({ onSubmit }) {
             <FiLink className="input-icon" />
             <input
               type="text"
-              name="longUrl"
-              value={formData.longUrl}
+              name="url"
+              value={formData.url}
               onChange={handleChange}
               className="form-control"
               placeholder="https://example.com/very/long/url/that/needs/shortening"
@@ -445,8 +714,8 @@ function CreateCorto({ onSubmit }) {
               <span className="input-prefix">cortox.io/</span>
               <input
                 type="text"
-                name="customAlias"
-                value={formData.customAlias}
+                name="shortCode"
+                value={formData.shortCode}
                 onChange={handleChange}
                 className="form-control"
                 placeholder="my-custom-corto"
@@ -458,6 +727,8 @@ function CreateCorto({ onSubmit }) {
           </div>
         </div>
 
+        {error && <div className="form-error">{error}</div>}
+
         <button type="submit" className="btn btn--primary btn--create">
           Create Corto
         </button>
@@ -466,7 +737,13 @@ function CreateCorto({ onSubmit }) {
   );
 }
 
-function YourCortos({ cortos, handleDelete, handleCopy, handleExport }) {
+function YourCortos({
+  cortos,
+  handleDelete,
+  handleCopy,
+  handleExport,
+  handleUpdate,
+}) {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const itemsPerPage = 10;
@@ -474,7 +751,7 @@ function YourCortos({ cortos, handleDelete, handleCopy, handleExport }) {
   const filteredCortos = cortos.filter(
     (corto) =>
       corto.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      corto.url.toLowerCase().includes(searchTerm.toLowerCase())
+      corto.shortCode.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const totalPages = Math.ceil(filteredCortos.length / itemsPerPage);
@@ -551,16 +828,17 @@ function YourCortos({ cortos, handleDelete, handleCopy, handleExport }) {
                   <th>Created</th>
                   <th>Updated</th>
                   <th>Clicks</th>
-                  <th>Actions</th>
+                  <th className="your-cortos__actions-column">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {currentCortos.map((corto) => (
                   <CortoRow
-                    key={corto.id}
+                    key={corto.shortCode}
                     corto={corto}
-                    onDelete={() => handleDelete(corto.id)}
-                    onCopy={() => handleCopy(corto.url)}
+                    onDelete={(shortCode) => handleDelete(shortCode)}
+                    onCopy={(shortCode) => handleCopy(shortCode)}
+                    onUpdate={handleUpdate}
                   />
                 ))}
               </tbody>
@@ -610,42 +888,208 @@ function YourCortos({ cortos, handleDelete, handleCopy, handleExport }) {
   );
 }
 
-function CortoRow({ corto, onDelete, onCopy }) {
+function CortoRow({ corto, onDelete, onCopy, onUpdate }) {
+  const [showQRCode, setShowQRCode] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getBaseUrl = () => {
+    const port = window.location.port ? `:${window.location.port}` : '';
+    return `${window.location.hostname}${port}`;
+  };
+
   return (
     <tr>
       <td>{corto.title}</td>
-      <td>
+      <td className="your-cortos__corto-column">
         <a
-          href={`https://${corto.url}`}
-          className="corto-link"
+          href={`${window.location.protocol}//${getBaseUrl()}/${
+            corto.shortCode
+          }`}
           target="_blank"
           rel="noopener noreferrer"
         >
-          {corto.url}
+          {`${getBaseUrl()}/${corto.shortCode}`}
         </a>
       </td>
-      <td>{corto.created}</td>
-      <td>{corto.updated}</td>
-      <td>{corto.clicks}</td>
+      <td>{formatDate(corto.createdAt)}</td>
+      <td>{corto.updatedAt ? formatDate(corto.updatedAt) : 'N/A'}</td>
+      <td>{corto.accessCount}</td>
       <td>
-        <div className="corto-actions">
-          <button className="corto-action-btn" title="Copy" onClick={onCopy}>
+        <div className="actions">
+          <button
+            className="btn-icon"
+            onClick={() => onCopy(corto.shortCode)}
+            title="Copy URL"
+          >
             <FiCopy className="corto-action-icon" />
           </button>
           <button
-            className="corto-action-btn"
+            className="btn-icon"
+            onClick={() => setShowQRCode(true)}
+            title="Show QR Code"
+          >
+            <FaQrcode className="corto-action-icon" />
+          </button>
+          <button
+            className="btn-icon"
+            onClick={() => setShowEditModal(true)}
+            title="Edit"
+          >
+            <FiEdit2 className="corto-action-icon" />
+          </button>
+          <button
+            className="btn-icon btn-icon--danger"
+            onClick={() => onDelete(corto.shortCode)}
             title="Delete"
-            onClick={onDelete}
           >
             <FiTrash2 className="corto-action-icon" />
           </button>
-          <button className="corto-action-btn" title="Edit">
-            <FiEdit2 className="corto-action-icon" />
-          </button>
         </div>
+        {showQRCode && (
+          <QRCodePopup
+            qrCode={corto.qrCode}
+            onClose={() => setShowQRCode(false)}
+          />
+        )}
+        {showEditModal && (
+          <EditCortoPopup
+            corto={corto}
+            onClose={() => setShowEditModal(false)}
+            onUpdate={onUpdate}
+          />
+        )}
       </td>
     </tr>
   );
 }
+
+const EditCortoPopup = ({ corto, onClose, onUpdate }) => {
+  const [formData, setFormData] = useState({
+    title: corto.title || '',
+    url: corto.url || '',
+    shortCode: corto.shortCode || '',
+  });
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      await onUpdate(corto.shortCode, formData);
+      onClose();
+    } catch (err) {
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else if (err.response?.data?.error) {
+        const validationError = err.response.data.error;
+        if (typeof validationError === 'object') {
+          const errorMessages = Object.values(validationError).join(', ');
+          setError(errorMessages);
+        } else {
+          setError(validationError);
+        }
+      } else {
+        setError('Failed to update corto. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="settings-popup">
+      <div className="settings-popup__overlay" onClick={onClose} />
+      <div className="settings-popup__content">
+        <div className="settings-popup__header">
+          <h2 className="settings-popup__title">Edit Corto</h2>
+          <button className="settings-popup__close" onClick={onClose}>
+            <FiX className="settings-popup__close-icon" />
+          </button>
+        </div>
+        <form className="settings-popup__body" onSubmit={handleSubmit}>
+          <div className="settings-popup__section">
+            <div className="settings-popup__option">
+              <label className="settings-popup__label">Title</label>
+              <input
+                type="text"
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                className="form-control"
+                placeholder="My awesome corto"
+              />
+            </div>
+            <div className="settings-popup__option">
+              <label className="settings-popup__label">Long URL</label>
+              <div className="input-with-icon">
+                <FiLink className="input-icon" />
+                <input
+                  type="text"
+                  name="url"
+                  value={formData.url}
+                  onChange={handleChange}
+                  className="form-control"
+                  placeholder="https://example.com/very/long/url/that/needs/shortening"
+                  required
+                />
+              </div>
+            </div>
+            <div className="settings-popup__option">
+              <label className="settings-popup__label">Custom Alias</label>
+              <div className="input-with-prefix">
+                <span className="input-prefix">cortox.io/</span>
+                <input
+                  type="text"
+                  name="shortCode"
+                  value={formData.shortCode}
+                  onChange={handleChange}
+                  className="form-control"
+                  placeholder="my-custom-corto"
+                />
+              </div>
+            </div>
+          </div>
+
+          {error && <div className="settings-popup__error">{error}</div>}
+
+          <div className="settings-popup__footer">
+            <button
+              type="button"
+              className="settings-popup__button settings-popup__button--cancel"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="settings-popup__button settings-popup__button--save"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 export default App;

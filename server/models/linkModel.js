@@ -5,7 +5,7 @@ const slugify = require('slugify');
 const linkSchema = new mongoose.Schema({
   title: {
     type: String,
-    default: 'Untitled',
+    default: 'Untitled Corto',
     trim: true,
   },
   url: {
@@ -27,10 +27,7 @@ const linkSchema = new mongoose.Schema({
       });
     },
   },
-  qrCode: {
-    type: String,
-    required: true,
-  },
+  qrCode: String,
   createdAt: {
     type: Date,
     default: Date.now(),

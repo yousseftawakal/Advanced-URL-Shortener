@@ -271,3 +271,12 @@
     background-position: 0% 50%;
   }
 }
+
+.form-error {
+  color: var(--color-red);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background-color: var(--color-red-light);
+  border-radius: 0.5rem;
+}

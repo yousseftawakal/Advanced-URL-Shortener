@@ -73,7 +73,12 @@ exports.goToLink = catchAsync(async (req, res, next) => {
   ++link.accessCount;
   link.save();
 
-  res.status(302).redirect(link.url);
+  res.status(200).json({
+    status: 'success',
+    data: {
+      url: link.url,
+    },
+  });
 });
 
 function normalizeURL(url) {
@@ -81,15 +86,17 @@ function normalizeURL(url) {
 }
 
 exports.createLink = catchAsync(async (req, res) => {
-  let { url, shortCode } = req.body;
+  let { title, url, shortCode } = req.body;
   url = normalizeURL(url);
 
+  if (title === '') title = undefined;
   if (!shortCode) shortCode = await generateShortCode();
 
   const fullShortUrl = `${req.protocol}://${req.get('host')}/${shortCode}`;
   const qrCode = await QRCode.toDataURL(fullShortUrl);
 
   const link = await Link.create({
+    title,
     url,
     shortCode,
     qrCode,
@@ -113,12 +120,18 @@ const getFields = (req) => {
 };
 
 exports.updateLink = catchAsync(async (req, res, next) => {
-  let { url, shortCode } = req.body;
+  let { title, url, shortCode } = req.body;
   url = normalizeURL(url);
+
+  let qrCode;
+  if (shortCode) {
+    const fullShortUrl = `${req.protocol}://${req.get('host')}/${shortCode}`;
+    qrCode = await QRCode.toDataURL(fullShortUrl);
+  }
 
   const link = await Link.findOneAndUpdate(
     getFields(req),
-    { url, shortCode },
+    { title, url, shortCode, qrCode: qrCode || undefined },
     {
       new: true,
       runValidators: true,

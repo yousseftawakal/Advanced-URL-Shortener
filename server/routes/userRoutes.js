@@ -6,7 +6,6 @@ const router = express.Router();
 
 router.post('/signup', authController.signup);
 router.post('/login', authController.login);
-router.get('/logout', authController.logout);
 
 router.use(authController.protect);
 
@@ -18,6 +17,8 @@ router.patch(
   authController.updatePassword
 );
 router.delete('/deleteMe', userController.getMe, userController.deleteUser);
+
+router.get('/logout', authController.logout);
 
 router.use(authController.restrictTo('admin'));
 
